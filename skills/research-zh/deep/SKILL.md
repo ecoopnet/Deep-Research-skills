@@ -51,7 +51,7 @@ prompt = f"""## 任务
 
 ## 验证
 完成JSON输出后，运行验证脚本确保字段完整覆盖：
-python ~/.claude/commands/research/validate_json.py -f {fields_path} -j {output_path}
+python ~/.claude/skills/research/validate_json.py -f {fields_path} -j {output_path}
 验证通过后才算完成任务。
 """
 ```
@@ -77,7 +77,7 @@ description: Microsoft/GitHub开发，首个主流AI编程助手，市场份额�
 
 ## 验证
 完成JSON输出后，运行验证脚本确保字段完整覆盖：
-python ~/.claude/commands/research/validate_json.py -f /home/weizhena/AIcoding/aicoding-history/fields.yaml -j /home/weizhena/AIcoding/aicoding-history/results/GitHub_Copilot.json
+python ~/.claude/skills/research/validate_json.py -f /home/weizhena/AIcoding/aicoding-history/fields.yaml -j /home/weizhena/AIcoding/aicoding-history/results/GitHub_Copilot.json
 验证通过后才算完成任务。
 ```
 

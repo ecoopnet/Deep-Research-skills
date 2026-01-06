@@ -51,7 +51,7 @@ Read {fields_path} to get all field definitions
 
 ## Validation
 After completing JSON output, run validation script to ensure complete field coverage:
-python ~/.claude/commands/research/validate_json.py -f {fields_path} -j {output_path}
+python ~/.claude/skills/research/validate_json.py -f {fields_path} -j {output_path}
 Task is complete only after validation passes.
 """
 ```
@@ -77,7 +77,7 @@ Read /home/weizhena/AIcoding/aicoding-history/fields.yaml to get all field defin
 
 ## Validation
 After completing JSON output, run validation script to ensure complete field coverage:
-python ~/.claude/commands/research/validate_json.py -f /home/weizhena/AIcoding/aicoding-history/fields.yaml -j /home/weizhena/AIcoding/aicoding-history/results/GitHub_Copilot.json
+python ~/.claude/skills/research/validate_json.py -f /home/weizhena/AIcoding/aicoding-history/fields.yaml -j /home/weizhena/AIcoding/aicoding-history/results/GitHub_Copilot.json
 Task is complete only after validation passes.
 ```
 
