@@ -63,6 +63,13 @@ run /research/report
 
 **You get**: `report.md` - A complete markdown report with table of contents, ready to read or share
 
+## Need Help?
+
+If you have questions, ask Claude Code to explain this project:
+```
+Help me understand this project: https://github.com/Weizhena/deep-research-skills
+```
+
 ## References
 
 - RhinoInsight: Improving Deep Research through Control Mechanisms for Model Behavior and Context

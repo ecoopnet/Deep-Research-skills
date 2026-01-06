@@ -63,6 +63,13 @@ run /research/report
 
 **你会得到**：`report.md` - 带目录的完整Markdown报告，可直接阅读或分享
 
+## 遇到问题？
+
+如果过程中有什么不懂的，可以让Claude Code帮你理解这个项目：
+```
+帮我理解这个项目: https://github.com/Weizhena/deep-research-skills
+```
+
 ## 参考文献
 
 - RhinoInsight: Improving Deep Research through Control Mechanisms for Model Behavior and Context
