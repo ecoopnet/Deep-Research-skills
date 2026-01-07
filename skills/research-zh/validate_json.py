@@ -9,7 +9,7 @@ import json
 import yaml
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Any, Tuple
+from typing import Dict, Set, Tuple
 
 # Category中英文映射
 CATEGORY_MAPPING = {
@@ -53,30 +53,41 @@ def load_fields_yaml(fields_path: Path) -> Tuple[Set[str], Set[str], Dict[str, s
 def extract_json_fields(data: Dict, category_mapping: Dict = None) -> Set[str]:
     """
     从JSON中提取所有字段名（支持扁平和嵌套结构）
+    只提取category级别的字段名，不递归到字段值的dict/list中
     """
     if category_mapping is None:
         category_mapping = CATEGORY_MAPPING
 
-    # 获取所有可能的嵌套key
+    # 获取所有可能的嵌套key（category容器）
     nested_keys = set()
     for keys in category_mapping.values():
         nested_keys.update(keys)
 
     fields = set()
 
-    def collect_fields(d: Dict, is_top_level: bool = True):
-        for k, v in d.items():
-            # 跳过内部字段
-            if k in {"_source_file", "uncertain"}:
-                continue
-            # 如果是嵌套结构的顶级key，递归进入
-            if is_top_level and k in nested_keys:
-                if isinstance(v, dict):
-                    collect_fields(v, is_top_level=False)
-            else:
-                fields.add(k)
-                if isinstance(v, dict):
-                    collect_fields(v, is_top_level=False)
+    def collect_fields(d, is_category_level: bool = True):
+        """
+        从dict或list结构中收集字段
+        is_category_level: True表示在顶层或category容器内部
+        """
+        if isinstance(d, dict):
+            for k, v in d.items():
+                # 跳过内部字段
+                if k in {"_source_file", "uncertain"}:
+                    continue
+                # 如果是category容器key，递归进入
+                if is_category_level and k in nested_keys:
+                    if isinstance(v, dict):
+                        collect_fields(v, is_category_level=True)
+                else:
+                    # 这是一个字段名，添加它
+                    fields.add(k)
+                    # 不递归到字段值中（避免将嵌套key误计为字段）
+        elif isinstance(d, list):
+            # 处理category级别的list-of-dict结构
+            for item in d:
+                if isinstance(item, dict):
+                    collect_fields(item, is_category_level=is_category_level)
 
     collect_fields(data)
     return fields
@@ -110,6 +121,10 @@ def validate_json(json_path: Path, all_fields: Set[str], required_fields: Set[st
             missing_by_category[cat] = []
         missing_by_category[cat].append(field)
 
+    # 对category内的列表排序，确保输出确定性
+    for cat in missing_by_category:
+        missing_by_category[cat].sort()
+
     return {
         "file": json_path.name,
         "total_defined": len(all_fields),
@@ -117,10 +132,10 @@ def validate_json(json_path: Path, all_fields: Set[str], required_fields: Set[st
         "missing": len(missing),
         "extra": len(extra),
         "coverage_rate": len(covered) / len(all_fields) * 100 if all_fields else 100,
-        "missing_required": list(missing_required),
-        "missing_optional": list(missing_optional),
+        "missing_required": sorted(missing_required),
+        "missing_optional": sorted(missing_optional),
         "missing_by_category": missing_by_category,
-        "extra_fields": list(extra),
+        "extra_fields": sorted(extra),
         "valid": len(missing_required) == 0,  # required字段全覆盖则valid
     }
 
@@ -140,7 +155,8 @@ def print_result(result: Dict, verbose: bool = True):
 
     if verbose and result["missing_optional"]:
         print(f"\n[WARN] 缺失可选字段 ({len(result['missing_optional'])}):")
-        for cat, fields in result["missing_by_category"].items():
+        for cat in sorted(result["missing_by_category"].keys()):
+            fields = result["missing_by_category"][cat]
             optional_fields = [f for f in fields if f not in result["missing_required"]]
             if optional_fields:
                 print(f"  [{cat}]: {', '.join(optional_fields)}")

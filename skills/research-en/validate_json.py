@@ -9,18 +9,18 @@ import json
 import yaml
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Any, Tuple
+from typing import Dict, Set, Tuple
 
-# Category mapping (supports both Chinese and English keys)
+# Category mapping (English keys only)
 CATEGORY_MAPPING = {
-    "basic_info": ["basic_info", "基本信息"],
-    "technical_features": ["technical_features", "technical_characteristics", "技术特性"],
-    "performance_metrics": ["performance_metrics", "performance", "性能指标"],
-    "milestone_significance": ["milestone_significance", "milestones", "里程碑意义"],
-    "business_info": ["business_info", "commercial_info", "商业信息"],
-    "competition_ecosystem": ["competition_ecosystem", "competition", "竞争与生态"],
-    "history": ["history", "历史沿革"],
-    "market_positioning": ["market_positioning", "market", "市场定位"],
+    "basic_info": ["basic_info", "Basic Info"],
+    "technical_features": ["technical_features", "technical_characteristics", "Technical Features"],
+    "performance_metrics": ["performance_metrics", "performance", "Performance Metrics"],
+    "milestone_significance": ["milestone_significance", "milestones", "Milestone Significance"],
+    "business_info": ["business_info", "commercial_info", "Business Info"],
+    "competition_ecosystem": ["competition_ecosystem", "competition", "Competition Ecosystem"],
+    "history": ["history", "History"],
+    "market_positioning": ["market_positioning", "market", "Market Positioning"],
 }
 
 
@@ -53,30 +53,41 @@ def load_fields_yaml(fields_path: Path) -> Tuple[Set[str], Set[str], Dict[str, s
 def extract_json_fields(data: Dict, category_mapping: Dict = None) -> Set[str]:
     """
     Extract all field names from JSON (supports both flat and nested structures)
+    Only extracts field names at category level, not nested dict/list values
     """
     if category_mapping is None:
         category_mapping = CATEGORY_MAPPING
 
-    # Get all possible nested keys
+    # Get all possible nested keys (category containers)
     nested_keys = set()
     for keys in category_mapping.values():
         nested_keys.update(keys)
 
     fields = set()
 
-    def collect_fields(d: Dict, is_top_level: bool = True):
-        for k, v in d.items():
-            # Skip internal fields
-            if k in {"_source_file", "uncertain"}:
-                continue
-            # If it's a top-level nested key, recurse into it
-            if is_top_level and k in nested_keys:
-                if isinstance(v, dict):
-                    collect_fields(v, is_top_level=False)
-            else:
-                fields.add(k)
-                if isinstance(v, dict):
-                    collect_fields(v, is_top_level=False)
+    def collect_fields(d, is_category_level: bool = True):
+        """
+        Collect fields from dict or list structures
+        is_category_level: True if we're at top level or inside a category container
+        """
+        if isinstance(d, dict):
+            for k, v in d.items():
+                # Skip internal fields
+                if k in {"_source_file", "uncertain"}:
+                    continue
+                # If it's a category container key, recurse into it
+                if is_category_level and k in nested_keys:
+                    if isinstance(v, dict):
+                        collect_fields(v, is_category_level=True)
+                else:
+                    # This is a field name, add it
+                    fields.add(k)
+                    # Don't recurse into field values (avoid counting nested keys as fields)
+        elif isinstance(d, list):
+            # Handle list-of-dict structures at category level
+            for item in d:
+                if isinstance(item, dict):
+                    collect_fields(item, is_category_level=is_category_level)
 
     collect_fields(data)
     return fields
@@ -110,6 +121,10 @@ def validate_json(json_path: Path, all_fields: Set[str], required_fields: Set[st
             missing_by_category[cat] = []
         missing_by_category[cat].append(field)
 
+    # Sort lists within categories for deterministic output
+    for cat in missing_by_category:
+        missing_by_category[cat].sort()
+
     return {
         "file": json_path.name,
         "total_defined": len(all_fields),
@@ -117,10 +132,10 @@ def validate_json(json_path: Path, all_fields: Set[str], required_fields: Set[st
         "missing": len(missing),
         "extra": len(extra),
         "coverage_rate": len(covered) / len(all_fields) * 100 if all_fields else 100,
-        "missing_required": list(missing_required),
-        "missing_optional": list(missing_optional),
+        "missing_required": sorted(missing_required),
+        "missing_optional": sorted(missing_optional),
         "missing_by_category": missing_by_category,
-        "extra_fields": list(extra),
+        "extra_fields": sorted(extra),
         "valid": len(missing_required) == 0,  # Valid if all required fields are covered
     }
 
@@ -140,7 +155,8 @@ def print_result(result: Dict, verbose: bool = True):
 
     if verbose and result["missing_optional"]:
         print(f"\n[WARN] Missing optional fields ({len(result['missing_optional'])}):")
-        for cat, fields in result["missing_by_category"].items():
+        for cat in sorted(result["missing_by_category"].keys()):
+            fields = result["missing_by_category"][cat]
             optional_fields = [f for f in fields if f not in result["missing_required"]]
             if optional_fields:
                 print(f"  [{cat}]: {', '.join(optional_fields)}")

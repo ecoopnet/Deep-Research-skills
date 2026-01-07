@@ -1,6 +1,6 @@
 ---
 description: 将deep调研结果汇总为markdown报告，覆盖所有字段，跳过不确定值。
-allowed-tools: Read, Write, Glob, Bash
+allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 ---
 
 # Research Report - 汇总报告
@@ -75,7 +75,7 @@ CATEGORY_MAPPING = {
 收集JSON中有但fields.yaml中没定义的字段，放入"其他信息"分类。注意过滤：
 - 内部字段：`_source_file`, `uncertain`
 - 嵌套结构顶级key：`basic_info`, `technical_features`等
-- `uncertain_fields`列表：需要逐行显示每个字段名，不要压缩成一行
+- `uncertain`数组：需要逐行显示每个字段名，不要压缩成一行
 
 **5. 不确定值跳过**
 跳过条件：

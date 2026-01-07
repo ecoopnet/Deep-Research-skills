@@ -24,6 +24,9 @@ cp -r skills/research-zh ~/.claude/skills/research
 
 # Required: Install agent
 cp agents/web-search-agent.md ~/.claude/agents/
+
+# Required: Install Python dependency
+pip install pyyaml
 ```
 
 ## Commands

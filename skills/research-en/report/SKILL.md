@@ -1,6 +1,6 @@
 ---
 description: Summarize deep research results into markdown report, cover all fields, skip uncertain values.
-allowed-tools: Read, Write, Glob, Bash
+allowed-tools: Read, Write, Glob, Bash, AskUserQuestion
 ---
 
 # Research Report - Summary Report
@@ -75,7 +75,7 @@ CATEGORY_MAPPING = {
 Collect fields that exist in JSON but not defined in fields.yaml, put in "Other Info" category. Note to filter:
 - Internal fields: `_source_file`, `uncertain`
 - Nested structure top-level keys: `basic_info`, `technical_features` etc.
-- `uncertain_fields` list: Display each field name on separate line, don't compress into one line
+- `uncertain` array: Display each field name on separate line, don't compress into one line
 
 **5. Uncertain Value Skipping**
 Skip conditions:

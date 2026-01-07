@@ -28,7 +28,7 @@ Find `*/outline.yaml` file in current working directory, read items list, execut
 - `{item_related_info}`: item's complete yaml content (name + category + description etc.)
 - `{output_dir}`: execution.output_dir from outline.yaml (default: ./results)
 - `{fields_path}`: absolute path to {topic}/fields.yaml
-- `{output_path}`: absolute path to {output_dir}/{item_name}.json
+- `{output_path}`: absolute path to {output_dir}/{item_name_slug}.json (slugify item_name: replace spaces with _, remove special chars)
 
 **Hard Constraint**: The following prompt must be strictly reproduced, only replacing variables in {xxx}, do not modify structure or wording.
 
@@ -44,7 +44,7 @@ Read {fields_path} to get all field definitions
 1. Output JSON according to fields defined in fields.yaml
 2. Mark uncertain field values with [uncertain]
 3. Add uncertain array at the end of JSON, listing all uncertain field names
-4. All field values must be in Chinese (research can be in English, but final JSON values in Chinese)
+4. All field values must be in English
 
 ## Output Path
 {output_path}
@@ -70,7 +70,7 @@ Read /home/weizhena/AIcoding/aicoding-history/fields.yaml to get all field defin
 1. Output JSON according to fields defined in fields.yaml
 2. Mark uncertain field values with [uncertain]
 3. Add uncertain array at the end of JSON, listing all uncertain field names
-4. All field values must be in Chinese (research can be in English, but final JSON values in Chinese)
+4. All field values must be in English
 
 ## Output Path
 /home/weizhena/AIcoding/aicoding-history/results/GitHub_Copilot.json

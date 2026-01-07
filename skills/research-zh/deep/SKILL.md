@@ -28,7 +28,7 @@ allowed-tools: Bash, Read, Write, Glob, WebSearch, Task
 - `{item_related_info}`: item的完整yaml内容（name + category + description等）
 - `{output_dir}`: outline.yaml中execution.output_dir（默认./results）
 - `{fields_path}`: {topic}/fields.yaml的绝对路径
-- `{output_path}`: {output_dir}/{item_name}.json的绝对路径
+- `{output_path}`: {output_dir}/{item_name_slug}.json的绝对路径（slugify处理item_name：空格替换为_，移除特殊字符）
 
 **硬约束**：以下prompt必须严格复述，仅替换{xxx}中的变量，禁止改写结构或措辞。
 
