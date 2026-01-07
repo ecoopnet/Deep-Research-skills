@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-JSON字段验证脚本
-验证JSON文件是否完整覆盖fields.yaml中定义的所有字段
-"""
 
 import json
-import yaml
 import sys
+from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Set, Tuple
 
-# Category中英文映射
+import yaml
+
 CATEGORY_MAPPING = {
     "基本信息": ["basic_info", "基本信息"],
     "技术特性": ["technical_features", "technical_characteristics", "技术特性"],
@@ -23,108 +19,55 @@ CATEGORY_MAPPING = {
     "市场定位": ["market_positioning", "market", "市场定位"],
 }
 
+_SKIP_KEYS = {"_source_file", "uncertain"}
 
-def load_fields_yaml(fields_path: Path) -> Tuple[Set[str], Set[str], Dict[str, str]]:
-    """
-    加载fields.yaml，返回：
-    - all_fields: 所有字段名集合
-    - required_fields: required=true的字段名集合
-    - field_categories: 字段名到类别的映射
-    """
-    with open(fields_path, 'r', encoding='utf-8') as f:
+
+def load_fields_yaml(fields_path):
+    with fields_path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
-
-    all_fields = set()
-    required_fields = set()
-    field_categories = {}
-
-    for category_info in data.get("field_categories", []):
-        category_name = category_info["category"]
-        for field in category_info.get("fields", []):
-            field_name = field["name"]
-            all_fields.add(field_name)
-            field_categories[field_name] = category_name
-            if field.get("required", False):
-                required_fields.add(field_name)
-
+    items = [
+        (field["name"], category["category"], field.get("required", False))
+        for category in data.get("field_categories", [])
+        for field in category.get("fields", [])
+    ]
+    all_fields = {name for name, _, _ in items}
+    required_fields = {name for name, _, required in items if required}
+    field_categories = {name: category for name, category, _ in items}
     return all_fields, required_fields, field_categories
 
 
-def extract_json_fields(data: Dict, category_mapping: Dict = None) -> Set[str]:
-    """
-    从JSON中提取所有字段名（支持扁平和嵌套结构）
-    只提取category级别的字段名，不递归到字段值的dict/list中
-    """
-    if category_mapping is None:
-        category_mapping = CATEGORY_MAPPING
-
-    # 获取所有可能的嵌套key（category容器）
-    nested_keys = set()
-    for keys in category_mapping.values():
-        nested_keys.update(keys)
-
+def extract_json_fields(data, category_mapping=None):
+    category_mapping = CATEGORY_MAPPING if category_mapping is None else category_mapping
+    nested_keys = {k for keys in category_mapping.values() for k in keys}
     fields = set()
-
-    def collect_fields(d, is_category_level: bool = True):
-        """
-        从dict或list结构中收集字段
-        is_category_level: True表示在顶层或category容器内部
-        """
-        if isinstance(d, dict):
-            for k, v in d.items():
-                # 跳过内部字段
-                if k in {"_source_file", "uncertain"}:
+    stack = [(data, True)]
+    while stack:
+        obj, is_category_level = stack.pop()
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k in _SKIP_KEYS:
                     continue
-                # 如果是category容器key，递归进入
                 if is_category_level and k in nested_keys:
                     if isinstance(v, dict):
-                        collect_fields(v, is_category_level=True)
-                else:
-                    # 这是一个字段名，添加它
-                    fields.add(k)
-                    # 不递归到字段值中（避免将嵌套key误计为字段）
-        elif isinstance(d, list):
-            # 处理category级别的list-of-dict结构
-            for item in d:
-                if isinstance(item, dict):
-                    collect_fields(item, is_category_level=is_category_level)
-
-    collect_fields(data)
+                        stack.append((v, True))
+                    continue
+                fields.add(k)
+        elif isinstance(obj, list):
+            stack.extend((item, is_category_level) for item in obj if isinstance(item, dict))
     return fields
 
 
-def validate_json(json_path: Path, all_fields: Set[str], required_fields: Set[str],
-                  field_categories: Dict[str, str]) -> Dict:
-    """
-    验证单个JSON文件
-    返回验证结果字典
-    """
-    with open(json_path, 'r', encoding='utf-8') as f:
+def validate_json(json_path, all_fields, required_fields, field_categories):
+    with json_path.open(encoding="utf-8") as f:
         data = json.load(f)
-
     json_fields = extract_json_fields(data)
-
-    # 计算覆盖情况
     covered = all_fields & json_fields
     missing = all_fields - json_fields
     extra = json_fields - all_fields
-
-    # 分类缺失字段
     missing_required = missing & required_fields
-    missing_optional = missing - required_fields
-
-    # 按类别分组缺失字段
-    missing_by_category = {}
+    missing_by_category = defaultdict(list)
     for field in missing:
-        cat = field_categories.get(field, "未知")
-        if cat not in missing_by_category:
-            missing_by_category[cat] = []
-        missing_by_category[cat].append(field)
-
-    # 对category内的列表排序，确保输出确定性
-    for cat in missing_by_category:
-        missing_by_category[cat].sort()
-
+        missing_by_category[field_categories.get(field, "未知")].append(field)
     return {
         "file": json_path.name,
         "total_defined": len(all_fields),
@@ -133,100 +76,82 @@ def validate_json(json_path: Path, all_fields: Set[str], required_fields: Set[st
         "extra": len(extra),
         "coverage_rate": len(covered) / len(all_fields) * 100 if all_fields else 100,
         "missing_required": sorted(missing_required),
-        "missing_optional": sorted(missing_optional),
-        "missing_by_category": missing_by_category,
+        "missing_optional": sorted(missing - required_fields),
+        "missing_by_category": {k: sorted(v) for k, v in missing_by_category.items()},
         "extra_fields": sorted(extra),
-        "valid": len(missing_required) == 0,  # required字段全覆盖则valid
+        "valid": len(missing_required) == 0,
     }
 
 
-def print_result(result: Dict, verbose: bool = True):
-    """打印验证结果"""
-    status = "PASS" if result["valid"] else "FAIL"
-    print(f"\n{'='*60}")
+def print_result(result, verbose=True):
+    status = "通过" if result["valid"] else "失败"
+    line = "=" * 60
+    print(f"\n{line}")
     print(f"[{status}] {result['file']}")
-    print(f"{'='*60}")
+    print(line)
     print(f"覆盖率: {result['coverage_rate']:.1f}% ({result['covered']}/{result['total_defined']})")
-
     if result["missing_required"]:
-        print(f"\n[ERROR] 缺失必需字段 ({len(result['missing_required'])}):")
-        for field in result["missing_required"]:
-            print(f"  - {field}")
-
+        print(f"\n[错误] 缺少必填字段 ({len(result['missing_required'])}):")
+        print("\n".join(f"  - {f}" for f in result["missing_required"]))
     if verbose and result["missing_optional"]:
-        print(f"\n[WARN] 缺失可选字段 ({len(result['missing_optional'])}):")
-        for cat in sorted(result["missing_by_category"].keys()):
-            fields = result["missing_by_category"][cat]
-            optional_fields = [f for f in fields if f not in result["missing_required"]]
-            if optional_fields:
-                print(f"  [{cat}]: {', '.join(optional_fields)}")
-
+        missing_required = set(result["missing_required"])
+        print(f"\n[警告] 缺少可选字段 ({len(result['missing_optional'])}):")
+        for cat in sorted(result["missing_by_category"]):
+            optional = [f for f in result["missing_by_category"][cat] if f not in missing_required]
+            if optional:
+                print(f"  [{cat}]: {', '.join(optional)}")
     if verbose and result["extra_fields"]:
-        print(f"\n[INFO] 额外字段 ({len(result['extra_fields'])}):")
-        print(f"  {', '.join(result['extra_fields'][:10])}")
-        if len(result["extra_fields"]) > 10:
-            print(f"  ... 及 {len(result['extra_fields']) - 10} 个其他字段")
+        extra = result["extra_fields"]
+        print(f"\n[信息] 额外字段 ({len(extra)}):")
+        print(f"  {', '.join(extra[:10])}")
+        if len(extra) > 10:
+            print(f"  ... 还有 {len(extra) - 10} 个")
 
 
 def main():
-    """主函数"""
     import argparse
-    parser = argparse.ArgumentParser(description="验证JSON文件是否覆盖fields.yaml定义的所有字段")
+    parser = argparse.ArgumentParser(description="验证JSON文件是否覆盖fields.yaml中定义的所有字段")
     parser.add_argument("--fields", "-f", type=str, help="fields.yaml路径", default="fields.yaml")
     parser.add_argument("--json", "-j", type=str, nargs="*", help="要验证的JSON文件路径")
-    parser.add_argument("--dir", "-d", type=str, help="JSON文件目录", default="results")
-    parser.add_argument("--quiet", "-q", action="store_true", help="只显示摘要")
+    parser.add_argument("--dir", "-d", type=str, help="包含JSON文件的目录", default="results")
+    parser.add_argument("--quiet", "-q", action="store_true", help="仅显示摘要")
     args = parser.parse_args()
-
-    # 定位fields.yaml
     fields_path = Path(args.fields)
     if not fields_path.exists():
-        # 尝试在当前目录和父目录查找
-        for p in [Path.cwd() / "fields.yaml", Path.cwd().parent / "fields.yaml"]:
+        for p in (Path.cwd() / "fields.yaml", Path.cwd().parent / "fields.yaml"):
             if p.exists():
                 fields_path = p
                 break
-
     if not fields_path.exists():
-        print(f"[ERROR] fields.yaml不存在: {fields_path}")
+        print(f"[错误] 找不到fields.yaml: {fields_path}")
         sys.exit(1)
-
     print(f"字段定义文件: {fields_path}")
     all_fields, required_fields, field_categories = load_fields_yaml(fields_path)
-    print(f"总字段数: {len(all_fields)} (必需: {len(required_fields)}, 可选: {len(all_fields) - len(required_fields)})")
-
-    # 收集JSON文件
-    json_files = []
-    if args.json:
-        json_files = [Path(p) for p in args.json]
-    else:
-        json_dir = Path(args.dir)
-        if json_dir.exists():
-            json_files = sorted(json_dir.glob("*.json"))
-
+    print(f"总字段数: {len(all_fields)} (必填: {len(required_fields)}, 可选: {len(all_fields) - len(required_fields)})")
+    json_files = (
+        [Path(p) for p in args.json]
+        if args.json
+        else sorted(Path(args.dir).glob("*.json")) if Path(args.dir).exists() else []
+    )
     if not json_files:
-        print(f"[WARN] 未找到JSON文件")
+        print("[警告] 未找到JSON文件")
         sys.exit(0)
-
-    # 验证每个文件
     results = []
     for json_path in json_files:
         if not json_path.exists():
-            print(f"[WARN] 文件不存在: {json_path}")
+            print(f"[警告] 文件不存在: {json_path}")
             continue
         result = validate_json(json_path, all_fields, required_fields, field_categories)
         results.append(result)
         print_result(result, verbose=not args.quiet)
-
-    # 汇总
-    print(f"\n{'='*60}")
+    line = "=" * 60
+    print(f"\n{line}")
     print("汇总")
-    print(f"{'='*60}")
+    print(line)
     passed = sum(1 for r in results if r["valid"])
     avg_coverage = sum(r["coverage_rate"] for r in results) / len(results) if results else 0
     print(f"验证通过: {passed}/{len(results)}")
     print(f"平均覆盖率: {avg_coverage:.1f}%")
-
     if passed < len(results):
         sys.exit(1)
 
