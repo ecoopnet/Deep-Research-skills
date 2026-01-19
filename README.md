@@ -1,6 +1,6 @@
 # Deep Research Skill for Claude Code / OpenCode
 
-[English](README.md) | [中文](README.zh.md)
+[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
 > If you find this project helpful, please give it a star! :star:
 
@@ -26,6 +26,9 @@ cp -r skills/research-en/* ~/.claude/skills/
 
 # Chinese version
 cp -r skills/research-zh/* ~/.claude/skills/
+
+# Japanese version
+cp -r skills/research-ja/* ~/.claude/skills/
 
 # Required: Install agent
 cp agents/web-search-agent.md ~/.claude/agents/
